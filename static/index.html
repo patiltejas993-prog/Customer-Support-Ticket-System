@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Support CRM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans">
+
+    <div class="max-w-5xl mx-auto p-6">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-blue-600">Support Tickets</h1>
+            <button onclick="toggleModal('createModal')" class="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700">
+                + New Ticket
+            </button>
+        </div>
+
+        <!-- Controls: Search & Filter -->
+        <div class="flex gap-4 mb-6">
+            <input type="text" id="searchInput" placeholder="Search ID, Name, Email..." class="flex-1 p-2 border rounded shadow-sm focus:ring-blue-500 focus:border-blue-500" onkeyup="loadTickets()">
+            <select id="statusFilter" class="p-2 border rounded shadow-sm" onchange="loadTickets()">
+                <option value="All">All Statuses</option>
+                <option value="Open">Open</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Closed">Closed</option>
+            </select>
+        </div>
+
+        <!-- Tickets List -->
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-gray-100 text-gray-600 uppercase text-sm border-b">
+                        <th class="p-4">ID</th>
+                        <th class="p-4">Customer</th>
+                        <th class="p-4">Subject</th>
+                        <th class="p-4">Status</th>
+                        <th class="p-4">Date</th>
+                        <th class="p-4">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="ticketList">
+                    <!-- Populated by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- CREATE TICKET MODAL -->
+    <div id="createModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg w-full max-w-md">
+            <h2 class="text-xl font-bold mb-4">Create New Ticket</h2>
+            <form id="createForm" onsubmit="createTicket(event)">
+                <input type="text" id="c_name" placeholder="Customer Name" required class="w-full mb-3 p-2 border rounded">
+                <input type="email" id="c_email" placeholder="Customer Email" required class="w-full mb-3 p-2 border rounded">
+                <input type="text" id="c_subject" placeholder="Issue Subject" required class="w-full mb-3 p-2 border rounded">
+                <textarea id="c_desc" placeholder="Description" required class="w-full mb-3 p-2 border rounded h-24"></textarea>
+                <div class="flex justify-end gap-2">
+                    <button type="button" onclick="toggleModal('createModal')" class="px-4 py-2 text-gray-600 border rounded">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">Submit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- VIEW/UPDATE TICKET MODAL -->
+    <div id="viewModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg w-full max-w-2xl">
+            <div class="flex justify-between items-start mb-4">
+                <h2 class="text-2xl font-bold" id="v_ticketId">TKT-XXX</h2>
+                <button onclick="toggleModal('viewModal')" class="text-gray-500 hover:text-black">✕</button>
+            </div>
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div><strong>Name:</strong> <span id="v_name"></span></div>
+                <div><strong>Email:</strong> <span id="v_email"></span></div>
+                <div class="col-span-2"><strong>Subject:</strong> <span id="v_subject"></span></div>
+                <div class="col-span-2 bg-gray-50 p-3 rounded text-sm"><strong class="block mb-1">Description:</strong> <span id="v_desc"></span></div>
+                <div class="col-span-2 bg-yellow-50 p-3 rounded text-sm"><strong class="block mb-1">History/Notes:</strong> <span id="v_notes" class="whitespace-pre-wrap"></span></div>
+            </div>
+            
+            <hr class="my-4">
+            <h3 class="font-bold mb-2">Update Ticket</h3>
+            <div class="flex gap-4">
+                <select id="u_status" class="p-2 border rounded w-1/3">
+                    <option value="Open">Open</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Closed">Closed</option>
+                </select>
+                <input type="text" id="u_notes" placeholder="Add a new note..." class="flex-1 p-2 border rounded">
+                <button onclick="updateTicket()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Update</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/api/tickets';
+        let currentViewId = null;
+
+        function toggleModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.toggle('hidden');
+        }
+
+        async function loadTickets() {
+            const search = document.getElementById('searchInput').value;
+            const status = document.getElementById('statusFilter').value;
+            let url = `${API_URL}?`;
+            if (search) url += `search=${search}&`;
+            if (status !== 'All') url += `status=${status}`;
+
+            const res = await fetch(url);
+            const tickets = await res.json();
+            
+            const tbody = document.getElementById('ticketList');
+            tbody.innerHTML = tickets.map(t => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-4 font-bold text-blue-600">${t.ticket_id}</td>
+                    <td class="p-4">${t.customer_name}</td>
+                    <td class="p-4">${t.subject}</td>
+                    <td class="p-4"><span class="px-2 py-1 text-xs rounded-full ${getStatusColor(t.status)}">${t.status}</span></td>
+                    <td class="p-4 text-sm">${new Date(t.created_at).toLocaleDateString()}</td>
+                    <td class="p-4"><button onclick="viewTicket('${t.ticket_id}')" class="text-blue-500 hover:underline">View</button></td>
+                </tr>
+            `).join('');
+        }
+
+        function getStatusColor(status) {
+            if(status === 'Open') return 'bg-yellow-100 text-yellow-800';
+            if(status === 'In Progress') return 'bg-blue-100 text-blue-800';
+            return 'bg-green-100 text-green-800';
+        }
+
+        async function createTicket(e) {
+            e.preventDefault();
+            const payload = {
+                customer_name: document.getElementById('c_name').value,
+                customer_email: document.getElementById('c_email').value,
+                subject: document.getElementById('c_subject').value,
+                description: document.getElementById('c_desc').value
+            };
+            await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            toggleModal('createModal');
+            document.getElementById('createForm').reset();
+            loadTickets();
+        }
+
+        async function viewTicket(id) {
+            currentViewId = id;
+            const res = await fetch(`${API_URL}/${id}`);
+            const t = await res.json();
+            
+            document.getElementById('v_ticketId').innerText = t.ticket_id;
+            document.getElementById('v_name').innerText = t.customer_name;
+            document.getElementById('v_email').innerText = t.customer_email;
+            document.getElementById('v_subject').innerText = t.subject;
+            document.getElementById('v_desc').innerText = t.description;
+            document.getElementById('v_notes').innerText = t.notes || "No notes yet.";
+            document.getElementById('u_status').value = t.status;
+            document.getElementById('u_notes').value = '';
+            
+            toggleModal('viewModal');
+        }
+
+        async function updateTicket() {
+            const payload = {
+                status: document.getElementById('u_status').value,
+                notes: document.getElementById('u_notes').value
+            };
+            await fetch(`${API_URL}/${currentViewId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            toggleModal('viewModal');
+            loadTickets();
+        }
+
+        // Init
+        loadTickets();
+    </script>
+</body>
+</html>
